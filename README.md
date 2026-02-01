@@ -1,44 +1,121 @@
-# Hygia Sense
+# Hygia Sense 🧼🚻
 
-## 📌 Description
+## 📌 Project Overview
 
-Hygia Sense is a smart hygiene monitoring dashboard web application built using:
+Hygia Sense is a smart hygiene monitoring dashboard designed to track cleanliness, tasks, and feedback in public and institutional washrooms.
+The system provides real-time monitoring, task assignment, and reporting to improve hygiene management efficiency.
 
-- **React + TypeScript** for frontend
-- **Node.js + Express** for backend
-- **MongoDB Atlas** for database
+---
 
-## 🚀 Features
+## 🎯 Objectives
 
-✔ Modular component-based frontend  
-✔ Form validation with Zod and React Hook Form  
-✔ Efficient state-fetching with TanStack React Query  
-✔ Data visualization with Recharts  
-✔ REST API backend with Express  
-✔ MongoDB for flexible data storage
+- Monitor hygiene status using sensor data
+- Assign and track cleaning tasks
+- Collect user feedback
+- Provide real-time analytics and reports
+- Improve cleanliness accountability
 
 ---
 
 ## 🛠️ Tech Stack
 
-**Frontend:** React, TypeScript, Vite, Tailwind CSS, React Router, Zod, React Query  
-**Backend:** Node.js, Express  
-**Database:** MongoDB  
-**Hosting:** Netlify (frontend), Render (backend), MongoDB Atlas
+### Frontend
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui + Radix UI
+- React Router
+- React Hook Form
+- Zod
+- TanStack React Query
+- Recharts
+
+### Backend
+
+- Node.js
+- Express.js
+- MongoDB
+- Mongoose
+- dotenv
+- CORS
 
 ---
 
-## 💡 How to Run Locally
+## 🧱 Project Architecture
 
-### 🧩 Backend
+Hygia Sense follows a client–server architecture:
 
-```bash
+- Frontend handles UI and user interaction
+- Backend manages business logic and APIs
+- MongoDB stores application data
+- Communication via REST APIs using JSON
+
+---
+
+## 📂 Project Structure
+
+Hygia-sense/
+├── backend/
+├── frontend/
+├── .gitignore
+└── README.md
+
+---
+
+## ⚙️ How to Run the Project Locally
+
+### Backend
+
 cd backend
 npm install
 npm run dev
-```
 
-###🧩 Frontend
+Server runs on http://localhost:5000
+
+### Frontend
+
 cd frontend
 npm install
 npm run dev
+
+Open http://localhost:5173
+
+---
+
+## 🔐 Security & Best Practices
+
+- Environment variables via .env
+- CORS enabled
+- Input validation using Zod and Mongoose
+- node_modules and .env excluded from GitHub
+
+---
+
+## ☁️ Deployment
+
+- Frontend: Netlify
+- Backend: Render
+- Database: MongoDB Atlas
+
+---
+
+## 🚀 Future Enhancements
+
+- Authentication & role-based access
+- IoT sensor integration
+- Mobile app support
+- Advanced analytics
+
+---
+
+## 👨‍💻 Author
+
+Ujjawal Verma
+
+---
+
+## 📜 License
+
+Educational use only.
