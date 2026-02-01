@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hygia Sense - Professional Enterprise Design System
+   Inspired by: Hospital HMIS, Airport FIDS, Government Dashboards
+   Philosophy: Clean, Calm, Functional, Professional
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Core Background - Neutral, calm enterprise grey */
+    --background: 220 14% 96%;
+    --foreground: 220 20% 14%;
+
+    /* Card surfaces - Clean white */
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 14%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 14%;
+
+    /* Primary - Professional deep blue-grey */
+    --primary: 220 25% 20%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary - Subtle grey */
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 220 20% 25%;
+
+    /* Muted - For subtle elements */
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 10% 46%;
+
+    /* Accent - Teal for informational */
+    --accent: 199 89% 38%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Status Colors - Clear, Meaningful */
+    --status-good: 142 71% 40%;
+    --status-good-foreground: 0 0% 100%;
+    --status-warning: 45 93% 47%;
+    --status-warning-foreground: 220 20% 14%;
+    --status-danger: 0 72% 51%;
+    --status-danger-foreground: 0 0% 100%;
+    --status-info: 199 89% 48%;
+    --status-info-foreground: 0 0% 100%;
+
+    /* Destructive */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border - Subtle, professional */
+    --border: 220 13% 88%;
+    --input: 220 13% 88%;
+    --ring: 199 89% 48%;
+
+    --radius: 0.5rem;
+
+    /* Sidebar - Darker professional panel */
+    --sidebar-background: 220 25% 18%;
+    --sidebar-foreground: 220 10% 85%;
+    --sidebar-primary: 199 89% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 24%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 20% 25%;
+    --sidebar-ring: 199 89% 55%;
+    --sidebar-muted: 220 15% 40%;
+  }
+
+  .dark {
+    --background: 220 20% 10%;
+    --foreground: 220 10% 95%;
+    --card: 220 20% 14%;
+    --card-foreground: 220 10% 95%;
+    --popover: 220 20% 14%;
+    --popover-foreground: 220 10% 95%;
+    --primary: 199 89% 55%;
+    --primary-foreground: 220 20% 10%;
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 220 10% 85%;
+    --muted: 220 20% 18%;
+    --muted-foreground: 220 10% 55%;
+    --accent: 199 89% 48%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 20% 22%;
+    --input: 220 20% 22%;
+    --ring: 199 89% 55%;
+    --sidebar-background: 220 25% 8%;
+    --sidebar-foreground: 220 10% 85%;
+    --sidebar-primary: 199 89% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 20% 14%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 20% 18%;
+    --sidebar-ring: 199 89% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  /* Professional table styling */
+  table {
+    @apply w-full border-collapse;
+  }
+
+  th {
+    @apply text-left font-semibold text-muted-foreground uppercase text-xs tracking-wider;
+  }
+}
+
+@layer components {
+  /* Status indicator dots */
+  .status-dot {
+    @apply w-2.5 h-2.5 rounded-full inline-block;
+  }
+
+  .status-dot-good {
+    @apply bg-[hsl(var(--status-good))];
+  }
+
+  .status-dot-warning {
+    @apply bg-[hsl(var(--status-warning))];
+  }
+
+  .status-dot-danger {
+    @apply bg-[hsl(var(--status-danger))];
+  }
+
+  .status-dot-info {
+    @apply bg-[hsl(var(--status-info))];
+  }
+
+  /* Metric cards for dashboard */
+  .metric-card {
+    @apply bg-card rounded-lg border border-border p-5 shadow-sm;
+  }
+
+  /* Professional page header */
+  .page-header {
+    @apply text-xl font-semibold text-foreground mb-6;
+  }
+
+  /* Enterprise table rows */
+  .table-row-hover {
+    @apply hover:bg-muted/50 transition-colors;
+  }
+
+  /* TV Display large text */
+  .tv-display-text {
+    @apply text-4xl md:text-6xl font-bold;
+  }
+
+  .tv-display-label {
+    @apply text-xl md:text-2xl text-muted-foreground uppercase tracking-wider;
+  }
+}
+
+@layer utilities {
+  /* Status text colors */
+  .text-status-good {
+    color: hsl(var(--status-good));
+  }
+
+  .text-status-warning {
+    color: hsl(var(--status-warning));
+  }
+
+  .text-status-danger {
+    color: hsl(var(--status-danger));
+  }
+
+  .text-status-info {
+    color: hsl(var(--status-info));
+  }
+
+  /* Status backgrounds with proper contrast */
+  .bg-status-good {
+    background-color: hsl(var(--status-good));
+    color: hsl(var(--status-good-foreground));
+  }
+
+  .bg-status-warning {
+    background-color: hsl(var(--status-warning));
+    color: hsl(var(--status-warning-foreground));
+  }
+
+  .bg-status-danger {
+    background-color: hsl(var(--status-danger));
+    color: hsl(var(--status-danger-foreground));
+  }
+
+  .bg-status-info {
+    background-color: hsl(var(--status-info));
+    color: hsl(var(--status-info-foreground));
+  }
+}
