@@ -183,24 +183,24 @@ Frontend runs on: http://localhost:5173
 
 ### Live Sensor Monitoring
 
-![Live Sensor](screenshots/Live Sensor.png)
+![Live Sensor](screenshots/LiveSensor.png)
 
 ### Task Assignment
 
-![Task Assignment](screenshots/Task Assignment.png)
+![Task Assignment](screenshots/TaskAssignment.png)
 
 ### Cleaner Management
 
-![Cleaner Management](screenshots/Cleaner Management.png)
+![Cleaner Management](screenshots/CleanerManagement.png)
 
 ### Cleaner Efficiency
 
-![Cleaner Efficiency](screenshots/Cleaner Efficiency.png)
+![Cleaner Efficiency](screenshots/CleanerEfficiency.png)
 
 ### Cleaner Portal
 
-![Cleaner Portal](screenshots/cleaner portal.png)
-![Cleaner Task](screenshots/Cleaner task.png)
+![Cleaner Portal](screenshots/cleanerportal.png)
+![Cleaner Task](screenshots/Cleanertask.png)
 
 ### User Feedback
 
@@ -208,11 +208,11 @@ Frontend runs on: http://localhost:5173
 
 ### Toilet Data Overview
 
-![Toilet Data](screenshots/toilet data.png)
+![Toilet Data](screenshots/toiletdata.png)
 
 ### TV Display Screen
 
-![TV Screen](screenshots/Tv screen page.png)
+![TV Screen](screenshots/Tvscreenpage.png)
 
 ---
 
