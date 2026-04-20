@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, MapPin, Clock, Camera, Upload, CheckCircle2, Send, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getTaskById, uploadPhotos } from '@/services/taskService';
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'under_review';
 
@@ -16,48 +17,80 @@ interface TaskDetail {
   notes: string;
 }
 
-const mockTaskDetails: Record<string, TaskDetail> = {
-  '1': { 
-    id: '1', 
-    washroom: 'Washroom A', 
-    floor: 'Ground Floor', 
-    building: 'Main Building',
-    assignedTime: '09:00 AM', 
-    status: 'pending', 
-    priority: 'urgent',
-    notes: 'Reported odour issue. Please check ventilation.'
-  },
-  '2': { 
-    id: '2', 
-    washroom: 'Washroom B', 
-    floor: 'First Floor', 
-    building: 'Main Building',
-    assignedTime: '10:30 AM', 
-    status: 'in_progress', 
-    priority: 'normal',
-    notes: 'Regular scheduled cleaning.'
-  },
-  '3': { 
-    id: '3', 
-    washroom: 'Washroom C', 
-    floor: 'Second Floor', 
-    building: 'Annex Building',
-    assignedTime: '12:00 PM', 
-    status: 'pending', 
-    priority: 'normal',
-    notes: 'Check soap dispensers and refill if needed.'
-  },
+const mapBackendStatusToCleanerStatus = (status?: string): TaskStatus => {
+  if (status === 'assigned') return 'pending';
+  if (status === 'in-progress') return 'in_progress';
+  if (status === 'pending-approval') return 'under_review';
+  return 'completed';
 };
 
 const CleanerTaskDetail = () => {
   const navigate = useNavigate();
   const { taskId } = useParams<{ taskId: string }>();
+  const [task, setTask] = useState<TaskDetail | null>(null);
   const [beforePhoto, setBeforePhoto] = useState<File | null>(null);
   const [afterPhoto, setAfterPhoto] = useState<File | null>(null);
+  const [beforePreviewUrl, setBeforePreviewUrl] = useState<string>('');
+  const [afterPreviewUrl, setAfterPreviewUrl] = useState<string>('');
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const task = taskId ? mockTaskDetails[taskId] : null;
+  useEffect(() => {
+    const fetchTask = async () => {
+      if (!taskId) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const data = await getTaskById(taskId);
+        const mappedTask: TaskDetail = {
+          id: data._id,
+          washroom: data.toilet?.name || 'Unknown washroom',
+          floor: data.toilet?.location || 'Unknown floor',
+          building: 'Main Building',
+          assignedTime: new Date(data.createdAt).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          status: mapBackendStatusToCleanerStatus(data.status),
+          priority: data.toilet?.cleanlinessStatus === 'red' ? 'urgent' : 'normal',
+          notes: data.completionNotes || 'No notes provided.',
+        };
+
+        setTask(mappedTask);
+        setTaskStatus(mappedTask.status);
+      } catch (error) {
+        console.error('Failed to fetch task details:', error);
+        setTask(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTask();
+  }, [taskId]);
+
+  useEffect(() => {
+    return () => {
+      if (beforePreviewUrl) {
+        URL.revokeObjectURL(beforePreviewUrl);
+      }
+      if (afterPreviewUrl) {
+        URL.revokeObjectURL(afterPreviewUrl);
+      }
+    };
+  }, [beforePreviewUrl, afterPreviewUrl]);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-12">
+        <p className="text-muted-foreground">Loading task...</p>
+      </div>
+    );
+  }
 
   if (!task) {
     return (
@@ -73,11 +106,25 @@ const CleanerTaskDetail = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'before' | 'after') => {
     const file = e.target.files?.[0];
     if (file) {
+      const fileSizeLimit = 5 * 1024 * 1024;
+      if (file.size > fileSizeLimit) {
+        alert('File is too large. Please upload an image under 5MB.');
+        return;
+      }
+
       if (type === 'before') {
         setBeforePhoto(file);
+        if (beforePreviewUrl) {
+          URL.revokeObjectURL(beforePreviewUrl);
+        }
+        setBeforePreviewUrl(URL.createObjectURL(file));
         setTaskStatus('in_progress');
       } else {
         setAfterPhoto(file);
+        if (afterPreviewUrl) {
+          URL.revokeObjectURL(afterPreviewUrl);
+        }
+        setAfterPreviewUrl(URL.createObjectURL(file));
       }
     }
   };
@@ -86,15 +133,19 @@ const CleanerTaskDetail = () => {
     setTaskStatus('in_progress');
   };
 
-  const handleSubmitForReview = () => {
-    if (!beforePhoto || !afterPhoto) return;
-    
-    setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
+  const handleSubmitForReview = async () => {
+    if (!beforePhoto || !afterPhoto || !taskId) return;
+
+    try {
+      setIsSubmitting(true);
+      await uploadPhotos(taskId, [beforePhoto, afterPhoto]);
       setTaskStatus('under_review');
+    } catch (error) {
+      console.error('Failed to upload photos:', error);
+      alert(error instanceof Error ? error.message : 'Failed to submit photos. Please try again.');
+    } finally {
       setIsSubmitting(false);
-    }, 1500);
+    }
   };
 
   const canSubmit = beforePhoto && afterPhoto && taskStatus === 'in_progress';
@@ -196,7 +247,15 @@ const CleanerTaskDetail = () => {
                 {beforePhoto ? (
                   <div className="relative">
                     <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-                      <Image className="w-8 h-8 text-muted-foreground" />
+                      {beforePreviewUrl ? (
+                        <img
+                          src={beforePreviewUrl}
+                          alt="Before cleaning preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Image className="w-8 h-8 text-muted-foreground" />
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-2 truncate">{beforePhoto.name}</p>
                     <label className="absolute inset-0 cursor-pointer">
@@ -204,6 +263,7 @@ const CleanerTaskDetail = () => {
                         type="file"
                         accept="image/*"
                         capture="environment"
+                        required
                         onChange={(e) => handleFileChange(e, 'before')}
                         className="sr-only"
                       />
@@ -219,6 +279,7 @@ const CleanerTaskDetail = () => {
                       type="file"
                       accept="image/*"
                       capture="environment"
+                      required
                       onChange={(e) => handleFileChange(e, 'before')}
                       className="sr-only"
                     />
@@ -241,7 +302,15 @@ const CleanerTaskDetail = () => {
                 ) : afterPhoto ? (
                   <div className="relative">
                     <div className="aspect-video bg-muted rounded-lg overflow-hidden flex items-center justify-center">
-                      <Image className="w-8 h-8 text-muted-foreground" />
+                      {afterPreviewUrl ? (
+                        <img
+                          src={afterPreviewUrl}
+                          alt="After cleaning preview"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Image className="w-8 h-8 text-muted-foreground" />
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-2 truncate">{afterPhoto.name}</p>
                     <label className="absolute inset-0 cursor-pointer">
@@ -249,6 +318,7 @@ const CleanerTaskDetail = () => {
                         type="file"
                         accept="image/*"
                         capture="environment"
+                        required
                         onChange={(e) => handleFileChange(e, 'after')}
                         className="sr-only"
                       />
@@ -264,6 +334,7 @@ const CleanerTaskDetail = () => {
                       type="file"
                       accept="image/*"
                       capture="environment"
+                      required
                       onChange={(e) => handleFileChange(e, 'after')}
                       className="sr-only"
                     />

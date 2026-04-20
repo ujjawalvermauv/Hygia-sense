@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Clock, ChevronRight, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { getAllTasks } from '@/services/taskService';
 
 type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'under_review';
 
@@ -13,17 +14,45 @@ interface CleaningTask {
   priority: 'normal' | 'urgent';
 }
 
-const mockTasks: CleaningTask[] = [
-  { id: '1', washroom: 'Washroom A', floor: 'Ground Floor', assignedTime: '09:00 AM', status: 'pending', priority: 'urgent' },
-  { id: '2', washroom: 'Washroom B', floor: 'First Floor', assignedTime: '10:30 AM', status: 'in_progress', priority: 'normal' },
-  { id: '3', washroom: 'Washroom C', floor: 'Second Floor', assignedTime: '12:00 PM', status: 'pending', priority: 'normal' },
-  { id: '4', washroom: 'Washroom D', floor: 'Third Floor', assignedTime: '02:00 PM', status: 'completed', priority: 'normal' },
-  { id: '5', washroom: 'Washroom A', floor: 'Ground Floor', assignedTime: '03:30 PM', status: 'under_review', priority: 'normal' },
-];
+const mapBackendStatusToCleanerStatus = (status?: string): TaskStatus => {
+  if (status === 'assigned') return 'pending';
+  if (status === 'in-progress') return 'in_progress';
+  if (status === 'pending-approval') return 'under_review';
+  return 'completed';
+};
 
 const CleanerDashboard = () => {
   const navigate = useNavigate();
-  const [tasks] = useState<CleaningTask[]>(mockTasks);
+  const [tasks, setTasks] = useState<CleaningTask[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      try {
+        setIsLoading(true);
+        const backendTasks = await getAllTasks();
+        const mappedTasks: CleaningTask[] = (backendTasks || []).map((task: any) => ({
+          id: task._id,
+          washroom: task.toilet?.name || 'Unknown washroom',
+          floor: task.toilet?.location || 'Unknown floor',
+          assignedTime: new Date(task.createdAt).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+          status: mapBackendStatusToCleanerStatus(task.status),
+          priority: task.toilet?.cleanlinessStatus === 'red' ? 'urgent' : 'normal',
+        }));
+
+        setTasks(mappedTasks);
+      } catch (error) {
+        console.error('Failed to load cleaner tasks:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTasks();
+  }, []);
 
   const getStatusConfig = (status: TaskStatus) => {
     switch (status) {
@@ -96,7 +125,14 @@ const CleanerDashboard = () => {
           Assigned Tasks
         </h2>
 
-        {tasks.map((task) => {
+        {isLoading && (
+          <div className="bg-card border border-border rounded-xl p-4 text-sm text-muted-foreground flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Loading tasks...
+          </div>
+        )}
+
+        {!isLoading && tasks.map((task) => {
           const statusConfig = getStatusConfig(task.status);
           const StatusIcon = statusConfig.icon;
           const isActionable = task.status === 'pending' || task.status === 'in_progress';
@@ -149,6 +185,12 @@ const CleanerDashboard = () => {
             </button>
           );
         })}
+
+        {!isLoading && tasks.length === 0 && (
+          <div className="bg-card border border-border rounded-xl p-4 text-sm text-muted-foreground">
+            No tasks found.
+          </div>
+        )}
       </div>
     </div>
   );
