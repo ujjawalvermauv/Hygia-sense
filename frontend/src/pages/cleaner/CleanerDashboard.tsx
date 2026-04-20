@@ -33,6 +33,7 @@ interface CleaningTask {
   assignedTime: string;
   status: TaskStatus;
   priority: TaskPriority;
+  cleanerId?: string;
   cleanerName?: string;
   cleanerEmail?: string;
   createdAt?: string;
@@ -186,6 +187,7 @@ const CleanerDashboard = () => {
         }),
         status: mapBackendStatusToCleanerStatus(task.status),
         priority: toTaskPriority(task),
+        cleanerId: task.cleaner?._id,
         cleanerName: task.cleaner?.name,
         cleanerEmail: task.cleaner?.email,
         createdAt: task.createdAt,
@@ -223,15 +225,22 @@ const CleanerDashboard = () => {
   }, [signedInCleanerName, tasks]);
 
   const cleanerTasks = useMemo(() => {
-    if (signedInCleanerEmail) {
-      const byEmail = tasks.filter((task) => (task.cleanerEmail || '').toLowerCase() === signedInCleanerEmail);
-      if (byEmail.length > 0) return byEmail;
+    if (cleanerProfile?._id) {
+      return tasks.filter((task) => task.cleanerId === cleanerProfile._id);
     }
 
-    if (!cleanerName || cleanerName === 'Cleaner') return tasks;
-    const filtered = tasks.filter((task) => task.cleanerName === cleanerName || (task.cleanerEmail || '').toLowerCase() === signedInCleanerEmail);
-    return filtered.length > 0 ? filtered : tasks;
-  }, [cleanerName, signedInCleanerEmail, tasks]);
+    if (sessionCleanerId) {
+      return tasks.filter((task) => task.cleanerId === sessionCleanerId);
+    }
+
+    if (signedInCleanerEmail) {
+      const byEmail = tasks.filter((task) => (task.cleanerEmail || '').toLowerCase() === signedInCleanerEmail);
+      return byEmail;
+    }
+
+    if (!cleanerName || cleanerName === 'Cleaner') return [];
+    return tasks.filter((task) => task.cleanerName === cleanerName);
+  }, [cleanerName, cleanerProfile?._id, sessionCleanerId, signedInCleanerEmail, tasks]);
 
   const todayTasks = useMemo(
     () =>

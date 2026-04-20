@@ -1,5 +1,6 @@
 const Cleaner = require("../models/Cleaner");
 const CleaningTask = require("../models/CleaningTask");
+const { assignTasksForCleaner } = require("../services/taskSchedulerService");
 const {
     sendAdminCleanerSignupAlert,
     sendAdminSystemFailureAlert,
@@ -201,12 +202,37 @@ async function cleanerLogin(req, res) {
             return res.status(403).json({ message: "Your cleaner account is pending admin approval." });
         }
 
+        if (cleaner.lastShiftEndedAt) {
+            const cooldownEndsAt = new Date(new Date(cleaner.lastShiftEndedAt).getTime() + SIX_HOURS_IN_MS);
+            if (Date.now() < cooldownEndsAt.getTime()) {
+                return res.status(403).json({
+                    message: `You can log in again after ${cooldownEndsAt.toLocaleString()}. A minimum 6-hour gap is required after ending a shift.`,
+                });
+            }
+        }
+
         if (cleaner.password !== password) {
             return res.status(401).json({ message: "Invalid cleaner email or password." });
         }
 
+        let loginAssignedTasks = 0;
+        try {
+            const openTasks = await CleaningTask.countDocuments({
+                cleaner: cleaner._id,
+                status: { $in: ["assigned", "in-progress", "pending-approval"] },
+            });
+
+            if (openTasks === 0) {
+                const assignment = await assignTasksForCleaner(cleaner._id, 1);
+                loginAssignedTasks = assignment.created || 0;
+            }
+        } catch (assignmentError) {
+            console.error("Failed to auto-assign cleaner tasks on login:", assignmentError.message);
+        }
+
         res.json({
             message: "Cleaner login successful.",
+            loginAssignedTasks,
             cleaner: {
                 _id: cleaner._id,
                 name: cleaner.name,

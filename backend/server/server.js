@@ -4,6 +4,7 @@ const app = require("./app");
 const Toilet = require("./models/Toilet");
 const SensorData = require("./models/SensorData");
 const { sendAdminSystemFailureAlert } = require("./services/notificationService");
+const { startTaskScheduler } = require("./services/taskSchedulerService");
 
 const PORT = process.env.PORT || 5000;
 
@@ -71,6 +72,7 @@ const startSensorDataUpdates = async () => {
     updateSensorData();
 };
 
+
 mongoose
     .connect(process.env.MONGO_URI)
     .then(async () => {
@@ -81,6 +83,10 @@ mongoose
 
             // Start sensor data updates only after the HTTP server is ready.
             startSensorDataUpdates();
+
+            // Start normal-mode priority + fairness task assignment.
+            startTaskScheduler();
+
         });
 
         server.on("error", async (error) => {
