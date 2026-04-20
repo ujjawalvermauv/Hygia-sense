@@ -33,6 +33,12 @@ export const API_ENDPOINTS = {
   CLEANERS: {
     GET_ALL: `${API_BASE_URL}/cleaners`,
   },
+
+  // AI
+  AI: {
+    OVERVIEW: `${API_BASE_URL}/ai/overview`,
+    AUTO_ASSIGN: `${API_BASE_URL}/ai/auto-assign`,
+  },
 };
 
 // Helper function for API calls

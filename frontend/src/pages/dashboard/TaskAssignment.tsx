@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Check, X, Eye, Clock, CheckCircle2, XCircle, Image, Loader } from 'lucide-react';
+import { Check, X, Eye, Clock, CheckCircle2, XCircle, Image, Loader, Brain, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import StatusBadge from '@/components/dashboard/StatusBadge';
@@ -15,6 +15,7 @@ import {
   approveTask, 
   rejectTask 
 } from '@/services/taskService';
+import { autoAssignAiTasks } from '@/services/aiService';
 
 type ReviewStatus = 'pending' | 'approved' | 'rejected';
 
@@ -38,6 +39,14 @@ interface TaskSubmission {
   photos: Photo[];
   approvalStatus?: ReviewStatus;
   status: string;
+  priority?: 'low' | 'medium' | 'high' | 'critical';
+  slaDeadline?: string;
+  aiRecommendation?: {
+    riskScore?: number;
+    recommendation?: string;
+    confidence?: number;
+    generatedAt?: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +65,7 @@ const TaskAssignment = () => {
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [isAutoAssignLoading, setIsAutoAssignLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   // Fetch tasks on mount and set up interval
@@ -131,6 +141,39 @@ const TaskAssignment = () => {
     }
   };
 
+  const handleAutoAssign = async () => {
+    try {
+      setIsAutoAssignLoading(true);
+      const response = await autoAssignAiTasks(60, 6);
+
+      const tasks = await getAllTasks();
+      setSubmissions(tasks);
+
+      alert(`AI created ${response.assignmentsCreated || 0} high-priority task(s).`);
+    } catch (error) {
+      console.error('AI auto-assignment failed:', error);
+      alert('AI auto-assignment failed');
+    } finally {
+      setIsAutoAssignLoading(false);
+    }
+  };
+
+  const getPriorityBadge = (priority: TaskSubmission['priority']) => {
+    if (priority === 'critical') return <StatusBadge status="danger" label="Critical" />;
+    if (priority === 'high') return <StatusBadge status="warning" label="High" />;
+    if (priority === 'medium') return <StatusBadge status="info" label="Medium" />;
+    return <StatusBadge status="good" label="Low" />;
+  };
+
+  const getSlaStatus = (deadline?: string) => {
+    if (!deadline) return <StatusBadge status="info" label="No SLA" />;
+
+    const diffMins = Math.round((new Date(deadline).getTime() - Date.now()) / 60000);
+    if (diffMins <= 0) return <StatusBadge status="danger" label="Overdue" />;
+    if (diffMins <= 15) return <StatusBadge status="warning" label={`${diffMins}m left`} />;
+    return <StatusBadge status="good" label={`${diffMins}m left`} />;
+  };
+
   const getStatusBadge = (status: ReviewStatus) => {
     switch (status) {
       case 'pending':
@@ -145,6 +188,22 @@ const TaskAssignment = () => {
   return (
     <div>
       <h1 className="page-header">Task Review</h1>
+
+      <div className="mb-4 flex justify-end">
+        <Button onClick={handleAutoAssign} disabled={isAutoAssignLoading}>
+          {isAutoAssignLoading ? (
+            <>
+              <Loader className="w-4 h-4 mr-2 animate-spin" />
+              Running AI...
+            </>
+          ) : (
+            <>
+              <Brain className="w-4 h-4 mr-2" />
+              Auto-Assign High Risk
+            </>
+          )}
+        </Button>
+      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -203,6 +262,8 @@ const TaskAssignment = () => {
                   <tr className="border-b border-border">
                     <th className="pb-3 pr-4 text-left">Washroom</th>
                     <th className="pb-3 pr-4 text-left">Cleaner</th>
+                    <th className="pb-3 pr-4 text-left">Priority</th>
+                    <th className="pb-3 pr-4 text-left">SLA</th>
                     <th className="pb-3 pr-4 text-left">Photos</th>
                     <th className="pb-3 pr-4 text-left">Submitted At</th>
                     <th className="pb-3 pr-4 text-left">Status</th>
@@ -217,6 +278,12 @@ const TaskAssignment = () => {
                       </td>
                       <td className="py-4 pr-4">
                         <p className="text-sm">{submission.cleaner?.name || 'Unknown cleaner'}</p>
+                      </td>
+                      <td className="py-4 pr-4">
+                        {getPriorityBadge(submission.priority || 'low')}
+                      </td>
+                      <td className="py-4 pr-4">
+                        {getSlaStatus(submission.slaDeadline)}
                       </td>
                       <td className="py-4 pr-4">
                         <span className="text-sm font-medium text-muted-foreground">
@@ -306,7 +373,35 @@ const TaskAssignment = () => {
                     {new Date(selectedSubmission.createdAt).toLocaleString()}
                   </p>
                 </div>
+                <div>
+                  <p className="text-muted-foreground">Priority</p>
+                  <div className="mt-1">{getPriorityBadge(selectedSubmission.priority || 'low')}</div>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">SLA</p>
+                  <div className="mt-1">{getSlaStatus(selectedSubmission.slaDeadline)}</div>
+                </div>
               </div>
+
+              {selectedSubmission.aiRecommendation?.riskScore !== undefined && (
+                <div className="rounded-lg border border-border bg-muted/40 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-status-info" />
+                        AI Recommendation
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {selectedSubmission.aiRecommendation.recommendation || 'No recommendation text available.'}
+                      </p>
+                    </div>
+                    <div className="text-right text-xs text-muted-foreground">
+                      <p>Risk: {selectedSubmission.aiRecommendation.riskScore}/100</p>
+                      <p>Confidence: {selectedSubmission.aiRecommendation.confidence || 0}%</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Photos Gallery */}
               <div>

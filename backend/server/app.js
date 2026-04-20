@@ -28,6 +28,7 @@ app.use("/api/admin-tasks", require("./routes/adminTaskRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/feedback", require("./routes/feedbackRoutes"));
 app.use("/api/sensor", require("./routes/sensorRoutes"));
+app.use("/api/ai", require("./routes/aiRoutes"));
 
 // Health check
 app.get("/api/health", (req, res) => {

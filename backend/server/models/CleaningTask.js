@@ -17,6 +17,14 @@ const cleaningTaskSchema = new mongoose.Schema(
             enum: ["assigned", "in-progress", "completed", "pending-approval"],
             default: "assigned",
         },
+        priority: {
+            type: String,
+            enum: ["low", "medium", "high", "critical"],
+            default: "medium",
+        },
+        slaDeadline: {
+            type: Date,
+        },
         photos: [
             {
                 filename: String,
@@ -39,6 +47,20 @@ const cleaningTaskSchema = new mongoose.Schema(
         approvalNotes: String,
         rejectionReason: String,
         completionNotes: String,
+        aiRecommendation: {
+            riskScore: {
+                type: Number,
+                min: 0,
+                max: 100,
+            },
+            recommendation: String,
+            confidence: {
+                type: Number,
+                min: 0,
+                max: 100,
+            },
+            generatedAt: Date,
+        },
     },
     { timestamps: true }
 );
