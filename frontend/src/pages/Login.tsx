@@ -6,9 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Droplets, Monitor, ShieldCheck, UserCheck } from 'lucide-react';
+import { loginCleaner, requestCleanerSignup } from '@/services/cleanerService';
 
 type AuthMode = 'login' | 'signup';
 type UserRole = 'admin' | 'cleaner' | 'display';
+
+const ADMIN_EMAIL = 'ujjawalvermauv12@gmail.com';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -17,16 +20,83 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authInfo, setAuthInfo] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (role === 'admin') {
-      navigate('/dashboard');
-    } else if (role === 'cleaner') {
+
+    setAuthError('');
+    setAuthInfo('');
+
+    if (mode === 'signup' && role === 'admin') {
+      setAuthError('Admin account cannot be created from sign up. Please choose Cleaner or TV Display.');
+      return;
+    }
+
+    if (role === 'admin' && email.trim().toLowerCase() !== ADMIN_EMAIL) {
+      setAuthError(`Only ${ADMIN_EMAIL} can access Admin mode.`);
+      return;
+    }
+
+    try {
+      if (role === 'admin') {
+        localStorage.setItem('hygia_session', JSON.stringify({
+          role: 'admin',
+          email: ADMIN_EMAIL,
+          name: 'Ujjawal Verma',
+        }));
+        navigate('/dashboard');
+        return;
+      }
+
+      if (role === 'display') {
+        localStorage.setItem('hygia_session', JSON.stringify({
+          role: 'display',
+          email: email.trim().toLowerCase(),
+          name: name.trim() || 'Display User',
+        }));
+        navigate('/display');
+        return;
+      }
+
+      if (mode === 'signup') {
+        if (!name.trim()) {
+          setAuthError('Cleaner name is required for signup.');
+          return;
+        }
+
+        if (!mobileNumber.trim()) {
+          setAuthError('Cleaner mobile number is required for signup.');
+          return;
+        }
+
+        await requestCleanerSignup(name.trim(), email.trim().toLowerCase(), password, mobileNumber.trim());
+        setAuthInfo('Signup request submitted. Admin approval is required before cleaner login.');
+        setMode('login');
+        setRole('cleaner');
+        return;
+      }
+
+      const response = await loginCleaner(email.trim().toLowerCase(), password);
+      const cleaner = response?.cleaner;
+
+      localStorage.setItem('hygia_session', JSON.stringify({
+        role: 'cleaner',
+        cleanerId: cleaner?._id,
+        email: cleaner?.email,
+        name: cleaner?.name,
+      }));
+
       navigate('/cleaner');
-    } else {
-      navigate('/display');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Login failed. Please try again.';
+      if (role === 'cleaner' && message.toLowerCase().includes('not found')) {
+        setAuthError('Cleaner account not found. Please sign up first and wait for admin approval.');
+        return;
+      }
+      setAuthError(message);
     }
   };
 
@@ -69,6 +139,19 @@ const Login = () => {
                 </div>
               )}
 
+              {mode === 'signup' && role === 'cleaner' && (
+                <div className="space-y-2">
+                  <Label htmlFor="mobileNumber">Mobile Number</Label>
+                  <Input
+                    id="mobileNumber"
+                    type="tel"
+                    placeholder="+91XXXXXXXXXX"
+                    value={mobileNumber}
+                    onChange={(e) => setMobileNumber(e.target.value)}
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
                 <Input 
@@ -97,22 +180,24 @@ const Login = () => {
                 <RadioGroup 
                   value={role} 
                   onValueChange={(value) => setRole(value as UserRole)}
-                  className="grid grid-cols-3 gap-3"
+                  className={`grid gap-3 ${mode === 'signup' ? 'grid-cols-2' : 'grid-cols-3'}`}
                 >
-                  <div className="relative">
-                    <RadioGroupItem 
-                      value="admin" 
-                      id="admin" 
-                      className="peer sr-only" 
-                    />
-                    <Label 
-                      htmlFor="admin" 
-                      className="flex flex-col items-center gap-2 p-4 border rounded-lg cursor-pointer transition-colors peer-data-[state=checked]:border-accent peer-data-[state=checked]:bg-accent/5 hover:bg-muted/50"
-                    >
-                      <ShieldCheck className="w-5 h-5 text-muted-foreground" />
-                      <span className="text-xs font-medium text-center">Admin</span>
-                    </Label>
-                  </div>
+                  {mode === 'login' && (
+                    <div className="relative">
+                      <RadioGroupItem 
+                        value="admin" 
+                        id="admin" 
+                        className="peer sr-only" 
+                      />
+                      <Label 
+                        htmlFor="admin" 
+                        className="flex flex-col items-center gap-2 p-4 border rounded-lg cursor-pointer transition-colors peer-data-[state=checked]:border-accent peer-data-[state=checked]:bg-accent/5 hover:bg-muted/50"
+                      >
+                        <ShieldCheck className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-xs font-medium text-center">Admin</span>
+                      </Label>
+                    </div>
+                  )}
                   <div className="relative">
                     <RadioGroupItem 
                       value="cleaner" 
@@ -142,7 +227,24 @@ const Login = () => {
                     </Label>
                   </div>
                 </RadioGroup>
+                {mode === 'signup' && (
+                  <p className="text-xs text-muted-foreground">
+                    Admin sign up is disabled. Only cleaner and TV display accounts can be created.
+                  </p>
+                )}
               </div>
+
+              {authError && (
+                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {authError}
+                </div>
+              )}
+
+              {authInfo && (
+                <div className="rounded-md border border-status-info/30 bg-status-info/10 px-3 py-2 text-sm text-status-info">
+                  {authInfo}
+                </div>
+              )}
 
               <Button type="submit" className="w-full">
                 {mode === 'login' ? 'Sign In' : 'Create Account'}
@@ -154,7 +256,16 @@ const Login = () => {
                 {mode === 'login' ? "Don't have an account?" : "Already have an account?"}
                 <button
                   type="button"
-                  onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+                  onClick={() => {
+                    const nextMode = mode === 'login' ? 'signup' : 'login';
+                    setMode(nextMode);
+                    setAuthError('');
+                    setAuthInfo('');
+                    setMobileNumber('');
+                    if (nextMode === 'signup' && role === 'admin') {
+                      setRole('cleaner');
+                    }
+                  }}
                   className="ml-1 text-accent hover:underline font-medium"
                 >
                   {mode === 'login' ? 'Sign up' : 'Sign in'}

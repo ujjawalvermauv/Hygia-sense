@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, Wind, Clock, CloudRain } from 'lucide-react';
+import { getAiOverview, type AiToiletInsight } from '@/services/aiService';
 
 type ToiletStatus = 'available' | 'occupied' | 'alert' | 'dirty';
 
@@ -19,20 +20,84 @@ interface ToiletUnit {
 
 const TVDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [lastUpdate] = useState('2 minutes ago');
-  
-  const [toilets] = useState<ToiletUnit[]>([
-    { id: 'T1', name: 'Toilet 1', type: 'Male', status: 'alert', users: 10, since: '7 am', hasAlert: true, aqi: 78, odour: 85, lastCleaned: '9:30 AM', needsCleaning: true },
-    { id: 'T2', name: 'Toilet 2', type: 'Male', status: 'available', users: 10, since: '7 am', hasAlert: false, aqi: 32, odour: 20, lastCleaned: '10:15 AM', needsCleaning: false },
-    { id: 'T3', name: 'Toilet 2', type: 'Female', status: 'occupied', users: 10, since: '7 am', hasAlert: false, aqi: 45, odour: 40, lastCleaned: '9:45 AM', needsCleaning: false },
-    { id: 'T4', name: 'Toilet 1', type: 'Female', status: 'dirty', users: 10, since: '7 am', hasAlert: false, aqi: 65, odour: 72, lastCleaned: '7:00 AM', needsCleaning: true },
+  const [lastUpdate, setLastUpdate] = useState('syncing...');
+  const [toilets, setToilets] = useState<ToiletUnit[]>([
+    { id: 'T1', name: 'Toilet 1', type: 'Male', status: 'available', users: 10, since: 'last hour', hasAlert: false, aqi: 32, odour: 20, lastCleaned: '10:15 AM', needsCleaning: false },
+    { id: 'T2', name: 'Toilet 2', type: 'Male', status: 'available', users: 10, since: 'last hour', hasAlert: false, aqi: 35, odour: 22, lastCleaned: '10:20 AM', needsCleaning: false },
+    { id: 'T3', name: 'Toilet 3', type: 'Female', status: 'available', users: 10, since: 'last hour', hasAlert: false, aqi: 40, odour: 28, lastCleaned: '10:05 AM', needsCleaning: false },
+    { id: 'T4', name: 'Toilet 4', type: 'Female', status: 'available', users: 10, since: 'last hour', hasAlert: false, aqi: 37, odour: 24, lastCleaned: '10:10 AM', needsCleaning: false },
   ]);
+
+  const inferType = (name: string, index: number): 'Male' | 'Female' => {
+    const lower = name.toLowerCase();
+    if (lower.includes('female') || lower.includes('girls') || lower.includes('women')) return 'Female';
+    if (lower.includes('male') || lower.includes('boys') || lower.includes('men')) return 'Male';
+    return index % 2 === 0 ? 'Male' : 'Female';
+  };
+
+  const getLastUpdateLabel = (isoTime?: string) => {
+    if (!isoTime) return 'syncing...';
+    const mins = Math.max(0, Math.round((Date.now() - new Date(isoTime).getTime()) / 60000));
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} minutes ago`;
+    const hours = Math.round(mins / 60);
+    return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+  };
+
+  const mapInsightToUnit = (insight: AiToiletInsight, index: number): ToiletUnit => {
+    const isDirty = insight.riskScore >= 60 || insight.metrics.latestWaterQuality === 'poor';
+    const isOccupied = insight.metrics.latestOccupancy;
+
+    const status: ToiletStatus = isDirty
+      ? 'dirty'
+      : isOccupied
+        ? 'occupied'
+        : 'available';
+
+    const sensorTimestamp = insight.latestSensorAt || insight.nextCleaningAt;
+
+    return {
+      id: insight.toiletId,
+      name: insight.toiletName,
+      type: inferType(insight.toiletName, index),
+      status,
+      users: Math.max(1, insight.metrics.avgUsagePerHour),
+      since: 'last hour',
+      hasAlert: insight.riskScore >= 80,
+      aqi: insight.metrics.avgAqi,
+      odour: Math.min(100, Math.max(10, Math.round((insight.metrics.avgAqi / 150) * 100))),
+      lastCleaned: new Date(sensorTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      needsCleaning: isDirty,
+    };
+  };
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const fetchLiveDisplayData = async () => {
+      try {
+        const data = await getAiOverview();
+        const mapped = data.insights.slice(0, 4).map(mapInsightToUnit);
+
+        if (mapped.length > 0) {
+          setToilets(mapped);
+        }
+
+        setLastUpdate(getLastUpdateLabel(data.summary.generatedAt));
+      } catch (error) {
+        console.error('Failed to fetch live TV display data:', error);
+      }
+    };
+
+    fetchLiveDisplayData();
+    const intervalId = setInterval(fetchLiveDisplayData, 8000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   const getStatusColor = (status: ToiletStatus, needsCleaning: boolean) => {

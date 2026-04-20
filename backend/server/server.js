@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const app = require("./app");
 const Toilet = require("./models/Toilet");
 const SensorData = require("./models/SensorData");
+const { sendAdminSystemFailureAlert } = require("./services/notificationService");
 
 const PORT = process.env.PORT || 5000;
 
@@ -15,10 +16,10 @@ const sensorDatasets = [
     { aqi: 95, humidity: 70, temperature: 22, waterLevel: 92, waterQuality: "good", occupancy: false, cleanliness: "green" },
 ];
 
-// 📡 Auto-update sensor data every 5 seconds
+// 📡 Auto-update sensor data every 5 seconds (with timeout to prevent stacking)
 let sensorDataIndex = 0;
 const startSensorDataUpdates = async () => {
-    setInterval(async () => {
+    const updateSensorData = async () => {
         try {
             const toilets = await Toilet.find();
 
@@ -52,8 +53,22 @@ const startSensorDataUpdates = async () => {
             console.log(`✅ Sensor data updated - Cycle ${sensorDataIndex}`);
         } catch (error) {
             console.error("❌ Error updating sensor data:", error.message);
+            try {
+                await sendAdminSystemFailureAlert({
+                    source: "server.startSensorDataUpdates",
+                    errorMessage: error.message,
+                });
+            } catch (alertError) {
+                console.error("❌ Failed to send sensor failure alert:", alertError.message);
+            }
+        } finally {
+            // Reschedule the next update (prevents interval stacking and connection pool exhaustion)
+            setTimeout(updateSensorData, 5000);
         }
-    }, 5000); // Update every 5 seconds
+    };
+
+    // Start the first update
+    updateSensorData();
 };
 
 mongoose
@@ -61,14 +76,43 @@ mongoose
     .then(async () => {
         console.log("✅ MongoDB connected");
 
-        // Start sensor data updates
-        startSensorDataUpdates();
-
-        app.listen(PORT, () => {
+        const server = app.listen(PORT, () => {
             console.log(`🚀 Server running on port ${PORT}`);
+
+            // Start sensor data updates only after the HTTP server is ready.
+            startSensorDataUpdates();
+        });
+
+        server.on("error", async (error) => {
+            if (error.code === "EADDRINUSE") {
+                console.error(`⚠️ Port ${PORT} is already in use. Another Hygia Sense backend instance is already running.`);
+                process.exit(0);
+                return;
+            }
+
+            console.error("❌ Server failed to start:", error);
+            try {
+                await sendAdminSystemFailureAlert({
+                    source: "server.listen",
+                    errorMessage: error?.message || "Server failed to start",
+                });
+            } catch (alertError) {
+                console.error("❌ Failed to send server startup alert:", alertError.message);
+            }
+            process.exit(1);
         });
     })
-    .catch((err) => console.error("❌ MongoDB connection failed:", err));
+    .catch(async (err) => {
+        console.error("❌ MongoDB connection failed:", err);
+        try {
+            await sendAdminSystemFailureAlert({
+                source: "server.mongoConnect",
+                errorMessage: err?.message || "MongoDB connection failed",
+            });
+        } catch (alertError) {
+            console.error("❌ Failed to send MongoDB failure alert:", alertError.message);
+        }
+    });
 
 module.exports = { startSensorDataUpdates };
 

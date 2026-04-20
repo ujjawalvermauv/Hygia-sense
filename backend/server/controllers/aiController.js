@@ -4,8 +4,10 @@ const Cleaner = require("../models/Cleaner");
 const {
     getToiletInsights,
     calculatePriorityFromRisk,
-    calculateSlaMinutes,
 } = require("../services/aiInsightsService");
+const { sendAdminSystemFailureAlert } = require("../services/notificationService");
+
+const DEFAULT_ASSIGNMENT_SLA_MINUTES = 15;
 
 const getAiOverview = async (req, res) => {
     try {
@@ -36,6 +38,10 @@ const getAiOverview = async (req, res) => {
 
         res.json({ summary, alerts, insights });
     } catch (error) {
+        await sendAdminSystemFailureAlert({
+            source: "aiController.getAiOverview",
+            errorMessage: error.message,
+        });
         res.status(500).json({ message: error.message });
     }
 };
@@ -50,6 +56,15 @@ const autoAssignHighRiskTasks = async (req, res) => {
             Cleaner.find().lean(),
         ]);
 
+        const eligibleCleaners = cleaners
+            .filter((row) => {
+                const approved = !row.approvalStatus || row.approvalStatus === "approved";
+                const active = !row.accountStatus || row.accountStatus === "active";
+                const onShift = row.status !== "off-shift";
+                return approved && active && onShift;
+            })
+            .map((row) => ({ ...row, assignedTasks: row.assignedTasks || 0 }));
+
         const createdTasks = [];
 
         for (const insight of insights) {
@@ -63,18 +78,35 @@ const autoAssignHighRiskTasks = async (req, res) => {
 
             if (existingOpenTask) continue;
 
-            let cleanerId = insight.recommendedCleaner?.cleanerId;
+            const sortedByWorkload = eligibleCleaners
+                .slice()
+                .sort((left, right) => {
+                    const assignedDiff = (left.assignedTasks || 0) - (right.assignedTasks || 0);
+                    if (assignedDiff !== 0) return assignedDiff;
+                    return (right.completedTasks || 0) - (left.completedTasks || 0);
+                });
 
-            if (!cleanerId) {
-                const fallbackCleaner = cleaners.find((row) => row.status === "available") || cleaners[0];
-                cleanerId = fallbackCleaner?._id;
+            const leastLoadedCleaner = sortedByWorkload[0];
+            const recommendedCleaner = sortedByWorkload.find(
+                (row) => String(row._id) === String(insight.recommendedCleaner?.cleanerId)
+            );
+
+            let cleanerId = leastLoadedCleaner?._id;
+
+            if (recommendedCleaner && leastLoadedCleaner) {
+                const recommendedLoad = recommendedCleaner.assignedTasks || 0;
+                const leastLoad = leastLoadedCleaner.assignedTasks || 0;
+
+                // Keep AI recommendation when it's close to fair load; otherwise prioritize balance.
+                if (recommendedLoad <= leastLoad + 1) {
+                    cleanerId = recommendedCleaner._id;
+                }
             }
 
             if (!cleanerId) continue;
 
             const priority = calculatePriorityFromRisk(insight.riskScore);
-            const slaMinutes = calculateSlaMinutes(insight.riskScore);
-            const deadline = new Date(Date.now() + slaMinutes * 60000);
+            const deadline = new Date(Date.now() + DEFAULT_ASSIGNMENT_SLA_MINUTES * 60000);
 
             const task = await CleaningTask.create({
                 toilet: insight.toiletId,
@@ -90,7 +122,15 @@ const autoAssignHighRiskTasks = async (req, res) => {
                 },
             });
 
-            await Cleaner.findByIdAndUpdate(cleanerId, { status: "busy" });
+            await Cleaner.findByIdAndUpdate(cleanerId, {
+                status: "busy",
+                $inc: { assignedTasks: 1 },
+            });
+
+            const selectedCleaner = eligibleCleaners.find((row) => String(row._id) === String(cleanerId));
+            if (selectedCleaner) {
+                selectedCleaner.assignedTasks = (selectedCleaner.assignedTasks || 0) + 1;
+            }
             await Toilet.findByIdAndUpdate(insight.toiletId, {
                 needsCleaning: true,
                 cleanlinessStatus: insight.riskScore >= 75 ? "red" : "orange",
@@ -106,6 +146,10 @@ const autoAssignHighRiskTasks = async (req, res) => {
             tasks: createdTasks,
         });
     } catch (error) {
+        await sendAdminSystemFailureAlert({
+            source: "aiController.autoAssignHighRiskTasks",
+            errorMessage: error.message,
+        });
         res.status(500).json({ message: error.message });
     }
 };

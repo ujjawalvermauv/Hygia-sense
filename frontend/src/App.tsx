@@ -12,6 +12,7 @@ import TaskAssignment from "./pages/dashboard/TaskAssignment";
 import CleanerManagement from "./pages/dashboard/CleanerManagement";
 import Feedback from "./pages/dashboard/Feedback";
 import Reports from "./pages/dashboard/Reports";
+import AdminAlerts from "./pages/dashboard/AdminAlerts";
 import CleanerDashboard from "./pages/cleaner/CleanerDashboard";
 import CleanerTaskDetail from "./pages/cleaner/CleanerTaskDetail";
 import TVDisplay from "./pages/TVDisplay";
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="tasks" element={<TaskAssignment />} />
             <Route path="cleaners" element={<CleanerManagement />} />
             <Route path="feedback" element={<Feedback />} />
+            <Route path="alerts" element={<AdminAlerts />} />
             <Route path="reports" element={<Reports />} />
           </Route>
           

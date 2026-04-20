@@ -3,14 +3,83 @@ const Toilet = require("../models/Toilet");
 const Cleaner = require("../models/Cleaner");
 const path = require("path");
 const mongoose = require("mongoose");
+const {
+    sendAdminCleaningNotification,
+    sendAdminWhatsAppAlert,
+    sendAdminSystemFailureAlert,
+    sendCleanerWhatsAppAlert,
+} = require("../services/notificationService");
+const DEFAULT_ASSIGNMENT_SLA_MINUTES = 15;
+
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const getShiftTimeWindow = (cleaner) => {
+    const shiftKey = String(cleaner?.shift || "").trim().toLowerCase();
+
+    if (shiftKey === "morning") return "Morning (6:00 AM - 2:00 PM)";
+    if (shiftKey === "afternoon") return "Afternoon (2:00 PM - 10:00 PM)";
+    if (shiftKey === "night") return "Night (10:00 PM - 6:00 AM)";
+
+    const label = String(cleaner?.shiftLabel || "").trim();
+    return label || "N/A";
+};
+
+const getTargetMinutes = (task) => {
+    if (task.slaDeadline) {
+        const targetBySla = Math.round(
+            (new Date(task.slaDeadline).getTime() - new Date(task.createdAt).getTime()) / 60000
+        );
+        if (targetBySla > 0) {
+            return targetBySla;
+        }
+    }
+
+    if (task.priority === "critical") return 15;
+    if (task.priority === "high") return 30;
+    if (task.priority === "medium") return 45;
+    return 60;
+};
+
+const calculateEfficiency = (task) => {
+    const actualMinutes = Math.max(
+        1,
+        Math.round((Date.now() - new Date(task.createdAt).getTime()) / 60000)
+    );
+
+    const targetMinutes = getTargetMinutes(task);
+    const speedScore = clamp(Math.round((targetMinutes / actualMinutes) * 100), 40, 100);
+    const evidenceScore = task.photos?.length >= 2 ? 100 : 70;
+
+    return Math.round(speedScore * 0.8 + evidenceScore * 0.2);
+};
 
 // Manually assign cleaning task
 exports.assignTask = async (req, res) => {
     try {
         const { toiletId, cleanerId } = req.body;
 
+        const existingOpenTask = await CleaningTask.findOne({
+            toilet: toiletId,
+            status: { $in: ["assigned", "in-progress", "pending-approval"] },
+        }).populate("cleaner");
+
+        if (existingOpenTask) {
+            return res.status(409).json({
+                message: `Open task already exists for this toilet and is assigned to ${existingOpenTask.cleaner?.name || "a cleaner"}.`,
+            });
+        }
+
         const toilet = await Toilet.findById(toiletId);
-        const cleaner = await Cleaner.findById(cleanerId);
+
+        let cleaner = cleanerId ? await Cleaner.findById(cleanerId) : null;
+
+        if (!cleaner) {
+            cleaner = await Cleaner.findOne({
+                approvalStatus: { $in: ["approved", null] },
+                accountStatus: { $in: ["active", null] },
+                status: { $in: ["available", null] },
+            }).sort({ assignedTasks: 1, completedTasks: -1, createdAt: 1 });
+        }
 
         if (!toilet || !cleaner) {
             return res.status(404).json({
@@ -18,16 +87,73 @@ exports.assignTask = async (req, res) => {
             });
         }
 
+        if (cleaner.approvalStatus && cleaner.approvalStatus !== "approved") {
+            return res.status(400).json({ message: "Selected cleaner is not approved yet." });
+        }
+
+        if (cleaner.accountStatus && cleaner.accountStatus !== "active") {
+            return res.status(400).json({ message: "Selected cleaner account is inactive." });
+        }
+
+        if (cleaner.status === "off-shift") {
+            return res.status(400).json({ message: "Selected cleaner is off-shift and cannot receive tasks." });
+        }
+
         const task = await CleaningTask.create({
             toilet: toiletId,
-            cleaner: cleanerId
+            cleaner: cleaner._id,
+            status: "assigned",
+            priority: "critical",
+            slaDeadline: new Date(Date.now() + DEFAULT_ASSIGNMENT_SLA_MINUTES * 60000),
         });
 
+        await Cleaner.findByIdAndUpdate(cleaner._id, {
+            status: "busy",
+            $inc: { assignedTasks: 1 },
+        });
+
+        const taskRef = String(task._id).slice(-6).toUpperCase();
+        const toiletNumber = toilet.toiletNumber || toilet.name || "N/A";
+        const floor = toilet.floor || "N/A";
+        const shiftTime = getShiftTimeWindow(cleaner);
+        const assignmentMessage = [
+            `Task Assignment: ${taskRef}`,
+            `Washroom Number: ${toiletNumber}`,
+            `Floor: ${floor}`,
+            `Shift Timing: ${shiftTime}`,
+            "Action: Please start cleaning now and upload before/after photos.",
+        ].join("\n");
+
+        try {
+            await sendCleanerWhatsAppAlert({
+                cleanerName: cleaner.name,
+                cleanerPhone: cleaner.mobileNumber,
+                message: assignmentMessage,
+                source: "adminTaskController.assignTask",
+            });
+        } catch (alertError) {
+            console.error("Failed to send cleaner task assignment alert:", alertError.message);
+        }
+
+        try {
+            await sendAdminWhatsAppAlert({
+                message: `Admin Alert: ${assignmentMessage} | Cleaner: ${cleaner.name}`,
+                eventType: "cleaning-update",
+                source: "adminTaskController.assignTask",
+            });
+        } catch (adminAlertError) {
+            console.error("Failed to send admin task assignment alert:", adminAlertError.message);
+        }
+
         res.status(201).json({
-            message: "Cleaning task assigned",
+            message: `Cleaning task assigned to ${cleaner.name}`,
             task
         });
     } catch (error) {
+        await sendAdminSystemFailureAlert({
+            source: "adminTaskController.assignTask",
+            errorMessage: error.message,
+        });
         res.status(500).json({ error: error.message });
     }
 };
@@ -66,15 +192,61 @@ exports.uploadPhotos = async (req, res) => {
         }));
 
         task.photos.push(...photos);
-        task.status = "pending-approval";
-        task.approvalStatus = "pending";
+
+        const efficiency = calculateEfficiency(task);
+        const autoApproved = efficiency > 85;
+
+        task.completionEfficiency = efficiency;
+        task.completedAt = new Date();
+        task.autoApproved = autoApproved;
+
+        if (autoApproved) {
+            task.status = "completed";
+            task.approvalStatus = "approved";
+            task.approvalNotes = `Auto-approved by system. Efficiency ${efficiency}%`;
+        } else {
+            task.status = "pending-approval";
+            task.approvalStatus = "pending";
+        }
+
         await task.save();
 
+        const populatedTask = await task.populate("toilet cleaner");
+
+        const notificationMeta = await sendAdminCleaningNotification({
+            toiletName: populatedTask.toilet?.name || "Unknown washroom",
+            cleanerName: populatedTask.cleaner?.name || "Cleaner",
+            efficiency,
+            autoApproved,
+        });
+
+        task.notificationMeta = {
+            delivered: notificationMeta.delivered,
+            channel: notificationMeta.channel,
+            recipients: notificationMeta.recipients,
+        };
+        await task.save();
+
+        if (autoApproved) {
+            await Cleaner.findByIdAndUpdate(task.cleaner, {
+                status: "available",
+                $inc: { completedTasks: 1, assignedTasks: -1 },
+            });
+        }
+
         res.status(200).json({
-            message: "Photos uploaded successfully",
+            message: autoApproved
+                ? `Photos uploaded. Task auto-approved at ${efficiency}% efficiency.`
+                : `Photos uploaded. Task submitted for admin review at ${efficiency}% efficiency.`,
+            autoApproved,
+            efficiency,
             task: await task.populate("toilet cleaner"),
         });
     } catch (error) {
+        await sendAdminSystemFailureAlert({
+            source: "adminTaskController.uploadPhotos",
+            errorMessage: error.message,
+        });
         res.status(500).json({ error: error.message });
     }
 };
@@ -151,11 +323,26 @@ exports.approveTask = async (req, res) => {
 
         task.approvalStatus = "approved";
         task.status = "completed";
+        task.completedAt = task.completedAt || new Date();
         task.approvalNotes = approvalNotes || "";
         if (adminId && mongoose.Types.ObjectId.isValid(adminId)) {
             task.approvedBy = adminId;
         }
+        task.reviewHistory = [
+            ...(task.reviewHistory || []),
+            {
+                type: "approved",
+                message: approvalNotes || "Admin approved the task.",
+                efficiency: task.completionEfficiency,
+                actor: adminId || "admin",
+            },
+        ];
         await task.save();
+
+        await Cleaner.findByIdAndUpdate(task.cleaner, {
+            status: "available",
+            $inc: { completedTasks: 1, assignedTasks: -1 },
+        });
 
         res.status(200).json({
             message: "Task approved successfully",
@@ -183,6 +370,15 @@ exports.rejectTask = async (req, res) => {
         if (adminId && mongoose.Types.ObjectId.isValid(adminId)) {
             task.approvedBy = adminId;
         }
+        task.reviewHistory = [
+            ...(task.reviewHistory || []),
+            {
+                type: "rejected",
+                message: rejectionReason || "Admin rejected the task and requested re-cleaning.",
+                efficiency: task.completionEfficiency,
+                actor: adminId || "admin",
+            },
+        ];
         await task.save();
 
         res.status(200).json({

@@ -29,8 +29,23 @@ export const assignTask = async (toiletId: string, cleanerId: string) => {
   });
 };
 
-// Upload photos for a task
-export const uploadPhotos = async (taskId: string, photos: File[]) => {
+// Start a cleaner task after QR scan
+export const startTask = async (
+  taskId: string,
+  qrValue: string,
+  location?: { latitude: number; longitude: number; accuracy?: number }
+) => {
+  return await apiCall(API_ENDPOINTS.TASKS.START(taskId), {
+    method: 'POST',
+    body: JSON.stringify({
+      qrValue,
+      location,
+    }),
+  });
+};
+
+// Complete a task with before/after photos
+export const completeTask = async (taskId: string, photos: File[]) => {
   if (photos.length < 2) {
     throw new Error('Please upload both before and after photos before submitting.');
   }
@@ -38,8 +53,8 @@ export const uploadPhotos = async (taskId: string, photos: File[]) => {
   const formData = new FormData();
   photos.forEach((photo) => formData.append('photos', photo));
 
-  const response = await fetch(API_ENDPOINTS.TASKS.UPLOAD_PHOTOS(taskId), {
-    method: 'POST',
+  const response = await fetch(API_ENDPOINTS.TASKS.COMPLETE(taskId), {
+    method: 'PUT',
     body: formData,
   });
 
@@ -49,11 +64,26 @@ export const uploadPhotos = async (taskId: string, photos: File[]) => {
     : { message: await response.text() };
 
   if (!response.ok) {
-    throw new Error(data?.message || 'Photo upload failed');
+    throw new Error(data?.message || 'Task completion failed');
   }
 
   return data;
 };
+
+export const reportTaskIssue = async (
+  taskId: string,
+  note: string,
+  severity: 'low' | 'medium' | 'high' = 'medium',
+  reportedVia: 'text' | 'voice' = 'text'
+) => {
+  return await apiCall(API_ENDPOINTS.TASKS.REPORT_ISSUE(taskId), {
+    method: 'POST',
+    body: JSON.stringify({ note, severity, reportedVia }),
+  });
+};
+
+// Backwards-compatible alias for older screens
+export const uploadPhotos = completeTask;
 
 // Approve a task
 export const approveTask = async (

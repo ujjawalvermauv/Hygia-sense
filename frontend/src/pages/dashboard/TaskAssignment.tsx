@@ -41,12 +41,24 @@ interface TaskSubmission {
   status: string;
   priority?: 'low' | 'medium' | 'high' | 'critical';
   slaDeadline?: string;
+  startedAt?: string;
+  qrVerified?: boolean;
+  completionEfficiency?: number;
+  timeEfficiency?: number;
+  photoImprovementScore?: number;
   aiRecommendation?: {
     riskScore?: number;
     recommendation?: string;
     confidence?: number;
     generatedAt?: string;
   };
+  reviewHistory?: Array<{
+    type: string;
+    message: string;
+    efficiency?: number;
+    createdAt: string;
+    actor?: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -381,7 +393,36 @@ const TaskAssignment = () => {
                   <p className="text-muted-foreground">SLA</p>
                   <div className="mt-1">{getSlaStatus(selectedSubmission.slaDeadline)}</div>
                 </div>
+                <div>
+                  <p className="text-muted-foreground">QR Verified</p>
+                  <p className={`font-medium mt-1 ${selectedSubmission.qrVerified ? 'text-status-good' : 'text-status-warning'}`}>
+                    {selectedSubmission.qrVerified ? 'Yes' : 'No'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Final Efficiency</p>
+                  <p className="font-medium mt-1">{selectedSubmission.completionEfficiency !== undefined ? `${selectedSubmission.completionEfficiency}%` : '--'}</p>
+                </div>
               </div>
+
+              {(selectedSubmission.startedAt || selectedSubmission.timeEfficiency !== undefined || selectedSubmission.photoImprovementScore !== undefined) && (
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-muted-foreground text-xs uppercase">Start Time</p>
+                    <p className="font-medium mt-1">
+                      {selectedSubmission.startedAt ? new Date(selectedSubmission.startedAt).toLocaleString() : 'Not started'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-muted-foreground text-xs uppercase">Time Efficiency</p>
+                    <p className="font-medium mt-1">{selectedSubmission.timeEfficiency !== undefined ? `${selectedSubmission.timeEfficiency}%` : '--'}</p>
+                  </div>
+                  <div className="rounded-lg border border-border bg-muted/30 p-3">
+                    <p className="text-muted-foreground text-xs uppercase">Photo Score</p>
+                    <p className="font-medium mt-1">{selectedSubmission.photoImprovementScore !== undefined ? `${selectedSubmission.photoImprovementScore}%` : '--'}</p>
+                  </div>
+                </div>
+              )}
 
               {selectedSubmission.aiRecommendation?.riskScore !== undefined && (
                 <div className="rounded-lg border border-border bg-muted/40 p-3">
@@ -399,6 +440,28 @@ const TaskAssignment = () => {
                       <p>Risk: {selectedSubmission.aiRecommendation.riskScore}/100</p>
                       <p>Confidence: {selectedSubmission.aiRecommendation.confidence || 0}%</p>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedSubmission.reviewHistory && selectedSubmission.reviewHistory.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium mb-3">Review History</p>
+                  <div className="space-y-2">
+                    {selectedSubmission.reviewHistory.map((entry, index) => (
+                      <div key={`${entry.type}-${index}`} className="rounded-lg border border-border bg-background p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium capitalize">{entry.type.replace(/-/g, ' ')}</p>
+                            <p className="text-xs text-muted-foreground mt-1">{entry.message}</p>
+                          </div>
+                          <div className="text-right text-xs text-muted-foreground">
+                            {entry.efficiency !== undefined && <p>Efficiency: {entry.efficiency}%</p>}
+                            <p>{new Date(entry.createdAt).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

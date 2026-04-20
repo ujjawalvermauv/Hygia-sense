@@ -1,5 +1,21 @@
 // API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const rawApiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+const resolveApiBaseUrl = (value: string) => {
+  if (!value) return 'http://localhost:5000/api';
+
+  if (value.startsWith('/')) {
+    return `http://localhost:5000${value.startsWith('/api') ? value : `/api${value}`}`.replace(/\/$/, '');
+  }
+
+  if (typeof window !== 'undefined' && value.includes(window.location.host) && window.location.port === '8080') {
+    return value.replace(window.location.origin, 'http://localhost:5000');
+  }
+
+  return value.replace(/\/$/, '');
+};
+
+const API_BASE_URL = resolveApiBaseUrl(rawApiBaseUrl);
 
 console.log('API Base URL:', API_BASE_URL);
 console.log('Environment Variables:', import.meta.env);
@@ -22,6 +38,9 @@ export const API_ENDPOINTS = {
     APPROVE: (taskId: string) => `${API_BASE_URL}/admin-tasks/${taskId}/approve`,
     REJECT: (taskId: string) => `${API_BASE_URL}/admin-tasks/${taskId}/reject`,
     DELETE_PHOTO: (taskId: string, photoId: string) => `${API_BASE_URL}/admin-tasks/${taskId}/photos/${photoId}`,
+    START: (taskId: string) => `${API_BASE_URL}/tasks/${taskId}/start`,
+    COMPLETE: (taskId: string) => `${API_BASE_URL}/tasks/${taskId}/complete`,
+    REPORT_ISSUE: (taskId: string) => `${API_BASE_URL}/tasks/${taskId}/issue`,
   },
   
   // Toilets
@@ -32,12 +51,25 @@ export const API_ENDPOINTS = {
   // Cleaners
   CLEANERS: {
     GET_ALL: `${API_BASE_URL}/cleaners`,
+    SIGNUP_REQUEST: `${API_BASE_URL}/cleaners/signup-request`,
+    LOGIN: `${API_BASE_URL}/cleaners/login`,
+    GET_PENDING: `${API_BASE_URL}/cleaners/pending`,
+    APPROVE: (cleanerId: string) => `${API_BASE_URL}/cleaners/${cleanerId}/approve`,
+    REJECT: (cleanerId: string) => `${API_BASE_URL}/cleaners/${cleanerId}/reject`,
+    ROSTER_UPDATE: (cleanerId: string) => `${API_BASE_URL}/cleaners/${cleanerId}/roster`,
+    SELF_SHIFT: (cleanerId: string) => `${API_BASE_URL}/cleaners/${cleanerId}/self-shift`,
   },
 
   // AI
   AI: {
     OVERVIEW: `${API_BASE_URL}/ai/overview`,
     AUTO_ASSIGN: `${API_BASE_URL}/ai/auto-assign`,
+  },
+
+  // Admin
+  ADMIN: {
+    ALERTS: `${API_BASE_URL}/admin/alerts`,
+    ALERT_SETTINGS: `${API_BASE_URL}/admin/alert-settings`,
   },
 };
 
@@ -60,9 +92,23 @@ export const apiCall = async (
     console.log(`API Response: ${response.status} from ${url}`);
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`API Error: ${response.statusText}`, errorText);
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      const contentType = response.headers.get('content-type') || '';
+      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+
+      if (contentType.includes('application/json')) {
+        const errorJson = await response.json();
+        if (errorJson?.message) {
+          errorMessage = errorJson.message;
+        }
+      } else {
+        const errorText = await response.text();
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+
+      console.error(`API Error: ${response.statusText}`, errorMessage);
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

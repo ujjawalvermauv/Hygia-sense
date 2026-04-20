@@ -15,7 +15,47 @@ PORT=5000
 NODE_ENV=development
 MONGO_URI=mongodb://localhost:27017/hygia-sense
 CORS_ORIGIN=http://localhost:5173
+
+# Optional: Admin alerts over SMS/WhatsApp via Twilio
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_FROM_NUMBER=+1415xxxxxxx
+TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
+ALERT_FAILURE_COOLDOWN_MS=300000
+
+# Optional: WhatsApp Cloud API fallback (Meta)
+WHATSAPP_CLOUD_API_TOKEN=your_meta_access_token
+WHATSAPP_PHONE_NUMBER_ID=your_whatsapp_phone_number_id
+WHATSAPP_CLOUD_API_VERSION=v21.0
+
+# Comma-separated recipient lists
+ADMIN_PHONE_NUMBERS=+91xxxxxxxxxx,+91yyyyyyyyyy
+ADMIN_WHATSAPP_NUMBERS=+91xxxxxxxxxx,+91yyyyyyyyyy
 ```
+
+Note: `ADMIN_*` env lists are fallback values. If admin recipients are configured from dashboard (`/dashboard/alerts`), database settings are used first.
+
+### 1.1 WhatsApp Alert Events
+
+When Twilio WhatsApp settings are configured, admin WhatsApp alerts are sent for:
+
+- New cleaner signup requests
+- Resubmitted cleaner signup requests
+- Backend failures in cleaner controller actions
+- MongoDB connection failures
+- Sensor auto-update failures
+- Task assignment failures
+- Task photo upload failures
+- AI auto-assignment failures
+- Cleaner signup approval/rejection notifications
+- Cleaner task assignment notifications
+
+Notes:
+
+- If WhatsApp vars are missing, alerts are logged to backend console.
+- WhatsApp Cloud API is tried first when configured, then Twilio WhatsApp, then log-only fallback.
+- For Twilio Sandbox, use `TWILIO_WHATSAPP_FROM=whatsapp:+14155238886`.
+- Repeated failures from the same source are rate-limited by `ALERT_FAILURE_COOLDOWN_MS`.
 
 ### 2. MongoDB Setup
 
@@ -101,12 +141,20 @@ The frontend will start on `http://localhost:5173`
 
 ### Toilets
 
-| Method | Endpoint        | Description        |
-| ------ | --------------- | ------------------ |
-| GET    | `/api/toilets`  | Get all toilets    |
-| POST   | `/api/toilets`  | Create new toilet  |
-| GET    | `/api/cleaners` | Get all cleaners   |
-| POST   | `/api/cleaners` | Create new cleaner |
+| Method | Endpoint                       | Description                                                          |
+| ------ | ------------------------------ | -------------------------------------------------------------------- |
+| GET    | `/api/toilets`                 | Get all toilets                                                      |
+| POST   | `/api/toilets`                 | Create new toilet                                                    |
+| GET    | `/api/cleaners`                | Get all cleaners                                                     |
+| POST   | `/api/cleaners`                | Create new cleaner                                                   |
+| POST   | `/api/cleaners/signup-request` | Cleaner signup request (`name`, `email`, `password`, `mobileNumber`) |
+
+### Admin Alert Settings
+
+| Method | Endpoint                    | Description                                      |
+| ------ | --------------------------- | ------------------------------------------------ |
+| GET    | `/api/admin/alert-settings` | Get alert recipient settings                     |
+| PUT    | `/api/admin/alert-settings` | Update admin recipients and cleaner alert toggle |
 
 ## Sensor Data Auto-Update
 

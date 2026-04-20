@@ -3,6 +3,14 @@ const mongoose = require("mongoose");
 const toiletSchema = new mongoose.Schema(
     {
         name: String,
+        toiletNumber: {
+            type: String,
+            trim: true,
+        },
+        floor: {
+            type: String,
+            trim: true,
+        },
         userCount: {
             type: Number,
             default: 0,

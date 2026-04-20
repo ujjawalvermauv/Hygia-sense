@@ -3,8 +3,12 @@ import { Droplets, LogOut, User } from 'lucide-react';
 
 const CleanerLayout = () => {
   const navigate = useNavigate();
+  const sessionRaw = localStorage.getItem('hygia_session');
+  const session = sessionRaw ? JSON.parse(sessionRaw) : null;
+  const cleanerName = session?.name || 'Cleaner';
 
   const handleLogout = () => {
+    localStorage.removeItem('hygia_session');
     navigate('/');
   };
 
@@ -26,6 +30,7 @@ const CleanerLayout = () => {
             <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
               <User className="w-4 h-4 text-muted-foreground" />
             </div>
+            <p className="text-xs text-muted-foreground hidden sm:block">{cleanerName}</p>
           </div>
           <button
             onClick={handleLogout}

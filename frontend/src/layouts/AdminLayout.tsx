@@ -6,6 +6,7 @@ import {
   Users, 
   MessageSquare, 
   FileText,
+  Bell,
   Droplets,
   LogOut,
   User
@@ -18,6 +19,7 @@ const navItems = [
   { to: '/dashboard/tasks', icon: ClipboardCheck, label: 'Task Assignment' },
   { to: '/dashboard/cleaners', icon: Users, label: 'Cleaner Management' },
   { to: '/dashboard/feedback', icon: MessageSquare, label: 'Feedback' },
+  { to: '/dashboard/alerts', icon: Bell, label: 'Admin Alerts' },
   { to: '/dashboard/reports', icon: FileText, label: 'Reports' },
 ];
 
