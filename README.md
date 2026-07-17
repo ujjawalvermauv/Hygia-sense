@@ -374,6 +374,20 @@ Why this algorithm:
   - src/pages/TVDisplay.tsx: public screen mode
   - src/services: API wrappers and data contracts
   - src/components: reusable UI blocks
+## Srashti's Contribution
+
+Srashti (`srashtibharadwaj`) added a focused, lightweight feature set to improve cleaner reporting and admin visibility. The addition is designed for rapid reporting and low-friction admin follow-up.
+
+- **Feature name:** Srashti's Quick Report Enhancer — one-tap quick-issue tagging with optional AI-backed recommendation.
+  - **Cleaner UI:** one-tap preset tags (Needs Supplies, Repair Needed, Spill / Messy, Paper/Towel Low) for fast reporting.
+  - **Admin UI:** AI 'Next Best Cleaning' recommendation card shows a `Task created by Srashti` badge when the admin creates the AI-recommended task.
+  - **Files changed:**
+    - `frontend/src/pages/cleaner/CleanerDashboard.tsx`
+    - `frontend/src/pages/dashboard/DashboardOverview.tsx`
+    - **Screenshot:**
+
+      ![Cleaner Quick Tags](screenshots/CleanerEfficency.png)
+  - **How it works:** Cleaner taps a preset tag → quick issue saved to task history → optionally triggers AI to surface a recommended task for admin creation.
 
 ## 8) Setup and Run
 
