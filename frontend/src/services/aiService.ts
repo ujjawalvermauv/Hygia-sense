@@ -3,6 +3,7 @@ import { API_ENDPOINTS, apiCall } from '@/lib/api';
 export interface AiToiletInsight {
   toiletId: string;
   toiletName: string;
+  floor?: string;
   latestSensorAt?: string | null;
   riskScore: number;
   priority: 'low' | 'medium' | 'high' | 'critical';

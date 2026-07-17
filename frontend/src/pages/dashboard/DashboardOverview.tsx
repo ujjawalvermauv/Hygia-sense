@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import MetricCard from '@/components/dashboard/MetricCard';
 import StatusBadge from '@/components/dashboard/StatusBadge';
-import { getAiOverview, type AiOverviewResponse } from '@/services/aiService';
+import { getAiOverview, autoAssignAiTasks, type AiOverviewResponse } from '@/services/aiService';
 
 const getPriorityBadge = (priority: string) => {
   if (priority === 'critical') return <StatusBadge status="danger" label="Critical" />;
@@ -34,27 +34,59 @@ const DashboardOverview = () => {
   const [aiOverview, setAiOverview] = useState<AiOverviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [suggestionStatus, setSuggestionStatus] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [recommendationCreated, setRecommendationCreated] = useState(false);
+
+  const fetchOverview = async () => {
+    try {
+      const data = await getAiOverview();
+      setAiOverview(data);
+      setError('');
+    } catch (err) {
+      console.error('Failed to fetch AI overview:', err);
+      setError('Unable to load AI overview right now.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchOverview = async () => {
-      try {
-        const data = await getAiOverview();
-        setAiOverview(data);
-        setError('');
-      } catch (err) {
-        console.error('Failed to fetch AI overview:', err);
-        setError('Unable to load AI overview right now.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     fetchOverview();
     const interval = setInterval(fetchOverview, 15000);
     return () => clearInterval(interval);
   }, []);
 
   const topInsights = useMemo(() => aiOverview?.insights.slice(0, 4) || [], [aiOverview]);
+  const topSuggestion = useMemo(() => aiOverview?.insights?.[0] || null, [aiOverview]);
+
+  const handleCreateSuggestedTask = async () => {
+    if (!topSuggestion) return;
+
+    setIsAssigning(true);
+    setSuggestionStatus('');
+    setRecommendationCreated(false);
+
+    try {
+      const response = await autoAssignAiTasks(topSuggestion.riskScore, 1);
+      const assignments = response?.assignmentsCreated || 0;
+      const created = assignments > 0;
+
+      setSuggestionStatus(
+        created
+          ? `Created ${assignments} recommended cleaning task.`
+          : 'No new task created. The highest-risk unit may already have an open assignment.'
+      );
+      setRecommendationCreated(created);
+      await fetchOverview();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create recommended task.';
+      setSuggestionStatus(message);
+      setRecommendationCreated(false);
+    } finally {
+      setIsAssigning(false);
+    }
+  };
 
   const occupancyCount = useMemo(
     () => aiOverview?.insights.filter((row) => row.metrics.latestOccupancy).length || 0,
@@ -157,6 +189,43 @@ const DashboardOverview = () => {
           subtitle="Toilets needing immediate intervention"
         />
       </div>
+
+      {topSuggestion && (
+        <div className="mb-6 rounded-2xl border border-accent/20 bg-accent/5 p-5 shadow-card">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full bg-foreground/10 px-3 py-1 text-xs font-semibold text-foreground">
+                <span>Next Best Cleaning</span>
+                {recommendationCreated && (
+                  <span className="rounded-full bg-status-good px-2 py-0.5 text-[10px] font-bold uppercase text-status-good-foreground">
+                    Task created
+                  </span>
+                )}
+              </div>
+              <h2 className="text-xl font-semibold text-foreground">{topSuggestion.toiletName}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Risk score {topSuggestion.riskScore}/100 · {topSuggestion.priority.toUpperCase()} priority · next clean in {topSuggestion.nextCleaningInMins} min
+              </p>
+              <p className="mt-3 text-sm text-foreground max-w-2xl truncate" title={topSuggestion.recommendation[0]}>
+                {topSuggestion.recommendation[0]}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleCreateSuggestedTask()}
+              disabled={isAssigning}
+              className="inline-flex items-center justify-center rounded-md bg-foreground px-4 py-2 text-sm font-semibold text-background hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isAssigning ? 'Assigning...' : 'Create Recommended Task'}
+            </button>
+          </div>
+          {suggestionStatus && (
+            <div className="mt-4 rounded-lg border border-border bg-background/80 px-3 py-2 text-sm text-foreground">
+              {suggestionStatus}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

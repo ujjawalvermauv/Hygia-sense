@@ -239,6 +239,7 @@ const getToiletInsights = async () => {
         insights.push({
             toiletId: toilet._id,
             toiletName: toilet.name,
+            floor: toilet.floor || "Unknown",
             latestSensorAt: toIsoOrNull(latestSensor?.createdAt),
             riskScore,
             priority,

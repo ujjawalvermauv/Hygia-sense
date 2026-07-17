@@ -37,6 +37,12 @@ Hygia Sense addresses these by creating a digital workflow from detection to ass
 
 2. Task review and approval console
 
+- New “Next Best Cleaning” recommendation card for AI-driven task suggestion
+- One-click creation of the recommended task from the dashboard
+- Implemented in `frontend/src/pages/dashboard/DashboardOverview.tsx`
+
+3. Cleaner lifecycle management
+
 - View all cleaning submissions with photos and review history
 - Approve/reject tasks manually
 - See SLA countdown and QR verification state
@@ -94,6 +100,13 @@ Hygia Sense addresses these by creating a digital workflow from detection to ass
 - Text or voice issue reporting
 - Severity tagging (low, medium, high)
 - Stored in task issue history for admin review
+
+6. Quick issue tag reporting (new)
+
+- One-tap cleaner workflow for common maintenance reports
+- Preset tags: Needs Supplies, Repair Needed, Spill / Messy, Paper/Towel Low
+- Sends issue details to the existing task issue history
+- Implemented in `frontend/src/pages/cleaner/CleanerDashboard.tsx`
 
 ### C. Public and Display Features
 

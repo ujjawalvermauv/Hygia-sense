@@ -184,13 +184,17 @@ const chooseLeastLoadedCleaner = (rows) => {
     return eligible[0] || null;
 };
 
+const FLOORS = ["Ground Floor", "First Floor", "Second Floor", "Third Floor", "Fourth Floor"];
+
 const createDemoToilet = async (cleaner, slotNumber) => {
     const cleanerTag = String(cleaner._id).slice(-6).toUpperCase();
+    const floorIndex = (slotNumber - 1) % FLOORS.length;
+    const floor = FLOORS[floorIndex];
 
     return Toilet.create({
-        name: `Demo Washroom ${cleaner.name} ${slotNumber}`,
+        name: `Washroom ${slotNumber}`,
         toiletNumber: `DEMO-${cleanerTag}-${slotNumber}`,
-        floor: "Demo Floor",
+        floor: floor,
         userCount: 0,
         needsCleaning: true,
         aqi: 120,

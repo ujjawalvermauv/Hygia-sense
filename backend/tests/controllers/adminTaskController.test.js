@@ -15,6 +15,8 @@ jest.mock("../../server/models/Cleaner", () => ({
 
 jest.mock("../../server/services/notificationService", () => ({
     sendAdminCleaningNotification: jest.fn(),
+    sendCleanerWhatsAppAlert: jest.fn(),
+    sendAdminWhatsAppAlert: jest.fn(),
 }));
 
 const CleaningTask = require("../../server/models/CleaningTask");
@@ -73,6 +75,7 @@ describe("adminTaskController.assignTask", () => {
         expect(Cleaner.findOne).toHaveBeenCalledWith({
             approvalStatus: { $in: ["approved", null] },
             accountStatus: { $in: ["active", null] },
+            status: { $in: ["available", null] },
         });
         expect(sortMock).toHaveBeenCalledWith({ assignedTasks: 1, completedTasks: -1, createdAt: 1 });
         expect(CleaningTask.create).toHaveBeenCalledWith(

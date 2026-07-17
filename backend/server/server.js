@@ -24,9 +24,10 @@ const startSensorDataUpdates = async () => {
         try {
             const toilets = await Toilet.find();
 
-            for (const toilet of toilets) {
-                // Cycle through dataset for each toilet
-                const data = sensorDatasets[sensorDataIndex % sensorDatasets.length];
+            for (let i = 0; i < toilets.length; i++) {
+                const toilet = toilets[i];
+                // Use a different dataset entry per toilet so each stall reflects distinct sensor readings
+                const data = sensorDatasets[(sensorDataIndex + i) % sensorDatasets.length];
 
                 // Create sensor reading
                 await SensorData.create({

@@ -4,6 +4,7 @@ jest.mock("../../server/models/CleaningTask", () => ({
 }));
 
 jest.mock("../../server/models/Cleaner", () => ({
+    findById: jest.fn(),
     findByIdAndUpdate: jest.fn(),
 }));
 
@@ -36,6 +37,8 @@ describe("cleaningTaskController.createCleaningTask", () => {
         const req = { body: { toilet: "toilet-1", cleaner: "cleaner-1" } };
         const res = createRes();
 
+        const Cleaner = require("../../server/models/Cleaner");
+        Cleaner.findById.mockResolvedValue({ _id: "cleaner-1", status: "available" });
         CleaningTask.findOne.mockResolvedValue({ _id: "open-task" });
 
         await createCleaningTask(req, res);

@@ -16,7 +16,7 @@ import {
   TrendingUp,
   TriangleAlert,
 } from 'lucide-react';
-import { getAllTasks } from '@/services/taskService';
+import { getAllTasks, reportTaskIssue } from '@/services/taskService';
 import {
   getAllCleaners,
   updateCleanerSelfShift,
@@ -163,6 +163,8 @@ const CleanerDashboard = () => {
   const [cleanerProfile, setCleanerProfile] = useState<CleanerAccount | null>(null);
   const [isShiftActionBusy, setIsShiftActionBusy] = useState(false);
   const [shiftFeedback, setShiftFeedback] = useState('');
+  const [quickIssueMessage, setQuickIssueMessage] = useState('');
+  const [issueActionInProgress, setIssueActionInProgress] = useState(false);
   const sessionRaw = localStorage.getItem('hygia_session');
   const session = sessionRaw ? JSON.parse(sessionRaw) : null;
   const sessionCleanerId = session?.cleanerId as string | undefined;
@@ -287,16 +289,24 @@ const CleanerDashboard = () => {
   const totalIssueReports = activeTasks.reduce((sum, task) => sum + task.issueCount, 0);
 
   const firstCheckIn = useMemo(() => {
+    if (cleanerProfile?.lastShiftStartedAt) {
+      return cleanerProfile.lastShiftStartedAt;
+    }
+
     const candidates = activeTasks
       .map((task) => task.startedAt || task.createdAt)
       .filter(Boolean) as string[];
     return candidates.sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0];
-  }, [activeTasks]);
+  }, [activeTasks, cleanerProfile?.lastShiftStartedAt]);
 
   const lastCheckOut = useMemo(() => {
+    if (cleanerProfile?.lastShiftEndedAt) {
+      return cleanerProfile.lastShiftEndedAt;
+    }
+
     const candidates = activeTasks.map((task) => task.completedAt).filter(Boolean) as string[];
     return candidates.sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0];
-  }, [activeTasks]);
+  }, [activeTasks, cleanerProfile?.lastShiftEndedAt]);
 
   const activeShift = activeTasks.some((task) => task.status === 'in_progress' || task.status === 'pending');
   const isOffShift = cleanerProfile?.status === 'off-shift';
@@ -380,6 +390,29 @@ const CleanerDashboard = () => {
       return new Date(left.createdAt || 0).getTime() - new Date(right.createdAt || 0).getTime();
     })[0];
   }, [cleanerTasks]);
+
+  const quickIssueTask = useMemo(() => {
+    return nextRecommendedTask || cleanerTasks[0] || null;
+  }, [nextRecommendedTask, cleanerTasks]);
+
+  const handleQuickIssueTag = async (tag: { note: string; severity: 'low' | 'medium' | 'high' }) => {
+    if (!quickIssueTask) {
+      setQuickIssueMessage('No active task available to attach this issue. Please start a task first.');
+      return;
+    }
+
+    setIssueActionInProgress(true);
+    setQuickIssueMessage('');
+    try {
+      await reportTaskIssue(quickIssueTask.id, tag.note, tag.severity, 'text');
+      setQuickIssueMessage(`Reported “${tag.note}” for ${quickIssueTask.washroom}.`);
+      await loadDashboardData();
+    } catch (error) {
+      setQuickIssueMessage(error instanceof Error ? error.message : 'Failed to report quick issue.');
+    } finally {
+      setIssueActionInProgress(false);
+    }
+  };
 
   const urgentAlerts = useMemo(
     () =>
@@ -608,6 +641,51 @@ const CleanerDashboard = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Quick Issue Tags</p>
+            <h2 className="text-base font-semibold text-foreground">Report a common issue fast</h2>
+          </div>
+          <span className="text-xs text-muted-foreground">Applies to your top active task</span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { label: 'Needs Supplies', note: 'Needs supplies or consumables restock.', severity: 'medium' },
+            { label: 'Repair Needed', note: 'Needs repair or maintenance attention.', severity: 'high' },
+            { label: 'Spill / Messy', note: 'Spill or messy condition needs cleanup.', severity: 'medium' },
+            { label: 'Paper/Towel Low', note: 'Paper towel or soap refill needed.', severity: 'low' },
+          ].map((tag) => (
+            <button
+              key={tag.label}
+              type="button"
+              onClick={() => void handleQuickIssueTag(tag as { note: string; severity: 'low' | 'medium' | 'high' })}
+              disabled={issueActionInProgress}
+              className="rounded-xl border border-border bg-background px-4 py-3 text-left text-sm transition hover:border-accent hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <div className="font-semibold text-foreground">{tag.label}</div>
+              <div className="mt-2 text-xs text-muted-foreground">{tag.note}</div>
+            </button>
+          ))}
+        </div>
+
+        <div className="rounded-xl border border-border bg-muted/10 p-3 text-sm text-muted-foreground">
+          {quickIssueTask ? (
+            <>
+              Reporting to <span className="font-medium text-foreground">{quickIssueTask.washroom}</span> — {quickIssueTask.status === 'in_progress' ? 'In progress' : 'Pending'} task.
+            </>
+          ) : (
+            'No active task available. Start or select a task to use quick issue tags.'
+          )}
+        </div>
+        {quickIssueMessage && (
+          <div className="rounded-lg border border-border bg-background/80 px-3 py-2 text-sm text-foreground">
+            {quickIssueMessage}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

@@ -16,11 +16,16 @@ interface ToiletUnit {
   odour: number;
   lastCleaned: string;
   needsCleaning: boolean;
+  waterLevel: number;
+  waterQuality: string;
 }
 
 const TVDisplay = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [lastUpdate, setLastUpdate] = useState('syncing...');
+  const [allInsights, setAllInsights] = useState<AiToiletInsight[]>([]);
+  const [availableFloors, setAvailableFloors] = useState<string[]>(['All Floors']);
+  const [selectedFloor, setSelectedFloor] = useState('All Floors');
   const [toilets, setToilets] = useState<ToiletUnit[]>([
     { id: 'T1', name: 'Toilet 1', type: 'Male', status: 'available', users: 10, since: 'last hour', hasAlert: false, aqi: 32, odour: 20, lastCleaned: '10:15 AM', needsCleaning: false },
     { id: 'T2', name: 'Toilet 2', type: 'Male', status: 'available', users: 10, since: 'last hour', hasAlert: false, aqi: 35, odour: 22, lastCleaned: '10:20 AM', needsCleaning: false },
@@ -68,6 +73,8 @@ const TVDisplay = () => {
       odour: Math.min(100, Math.max(10, Math.round((insight.metrics.avgAqi / 150) * 100))),
       lastCleaned: new Date(sensorTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       needsCleaning: isDirty,
+      waterLevel: insight.metrics.latestWaterLevel ?? 75,
+      waterQuality: insight.metrics.latestWaterQuality || 'unknown',
     };
   };
 
@@ -78,14 +85,27 @@ const TVDisplay = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const sampleInsightsForDisplay = (insights: AiToiletInsight[], count = 4) => {
+    if (insights.length <= count) return insights;
+
+    const shuffled = [...insights];
+    for (let i = shuffled.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled.slice(0, count);
+  };
+
   useEffect(() => {
     const fetchLiveDisplayData = async () => {
       try {
         const data = await getAiOverview();
-        const mapped = data.insights.slice(0, 4).map(mapInsightToUnit);
+        const sampled = sampleInsightsForDisplay(data.insights, 4);
+        const mapped = sampled.map(mapInsightToUnit);
 
         if (mapped.length > 0) {
-          setToilets(mapped);
+          setAllInsights(data.insights);
+          setAvailableFloors(['All Floors', ...Array.from(new Set(data.insights.map((insight) => insight.floor || 'Unknown')))]);
         }
 
         setLastUpdate(getLastUpdateLabel(data.summary.generatedAt));
@@ -95,10 +115,25 @@ const TVDisplay = () => {
     };
 
     fetchLiveDisplayData();
-    const intervalId = setInterval(fetchLiveDisplayData, 8000);
+    const intervalId = setInterval(fetchLiveDisplayData, 15000); // Refresh every 15 seconds
 
     return () => clearInterval(intervalId);
   }, []);
+
+  useEffect(() => {
+    const visibleInsights =
+      selectedFloor === 'All Floors'
+        ? allInsights
+        : allInsights.filter((insight) => (insight.floor || 'Unknown') === selectedFloor);
+
+    const sampled = visibleInsights.length > 0
+      ? sampleInsightsForDisplay(visibleInsights, 4)
+      : sampleInsightsForDisplay(allInsights, 4);
+
+    if (sampled.length > 0) {
+      setToilets(sampled.map(mapInsightToUnit));
+    }
+  }, [allInsights, selectedFloor]);
 
   const getStatusColor = (status: ToiletStatus, needsCleaning: boolean) => {
     if (needsCleaning) return 'bg-rose-400';
@@ -120,6 +155,12 @@ const TVDisplay = () => {
     if (odour <= 40) return 'text-teal-600 bg-teal-50';
     if (odour <= 70) return 'text-amber-600 bg-amber-50';
     return 'text-rose-600 bg-rose-50';
+  };
+
+  const getWaterColor = (quality: string, level: number) => {
+    if (quality === 'poor' || level < 30) return 'text-rose-600 bg-rose-50';
+    if (quality === 'fair' || level < 60) return 'text-amber-600 bg-amber-50';
+    return 'text-teal-600 bg-teal-50';
   };
 
   // Toilet cubicle with door - architectural top-down view
@@ -279,11 +320,11 @@ const TVDisplay = () => {
       {/* Header */}
       <header className="bg-white border-b border-slate-200 px-8 py-5">
         <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-2xl font-bold text-slate-800">Smart Toilet Monitoring - Corporate Office</h1>
+          <h1 className="text-2xl font-bold text-slate-800">Smart Toilet Monitoring - hygia sense</h1>
           <p className="text-sm text-slate-500 mt-1">Data last update {lastUpdate}</p>
           
           {/* Legend */}
-          <div className="flex items-center justify-center gap-8 mt-4">
+          <div className="flex flex-wrap items-center justify-center gap-4 mt-4">
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 bg-teal-400 rounded" />
               <span className="text-sm text-slate-600">Available</span>
@@ -299,6 +340,19 @@ const TVDisplay = () => {
             <div className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-rose-500" />
               <span className="text-sm text-slate-600">Attention Required</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="floor-select" className="text-sm text-slate-600">Floor:</label>
+              <select
+                id="floor-select"
+                value={selectedFloor}
+                onChange={(e) => setSelectedFloor(e.target.value)}
+                className="rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700"
+              >
+                {availableFloors.map((floor) => (
+                  <option key={floor} value={floor}>{floor}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
