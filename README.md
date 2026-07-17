@@ -374,6 +374,7 @@ Why this algorithm:
   - src/pages/TVDisplay.tsx: public screen mode
   - src/services: API wrappers and data contracts
   - src/components: reusable UI blocks
+
 ## Srashti's Contribution
 
 Srashti (`srashtibharadwaj`) added a focused, lightweight feature set to improve cleaner reporting and admin visibility. The addition is designed for rapid reporting and low-friction admin follow-up.
@@ -387,6 +388,7 @@ Srashti (`srashtibharadwaj`) added a focused, lightweight feature set to improve
     - **Screenshot:**
 
       ![Cleaner Quick Tags](screenshots/CleanerEfficency.png)
+
   - **How it works:** Cleaner taps a preset tag → quick issue saved to task history → optionally triggers AI to surface a recommended task for admin creation.
 
 ## 8) Setup and Run
